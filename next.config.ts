@@ -1,7 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.externals = {
+        ...config.externals,
+        fs: 'empty',
+        path: 'empty',
+      }
+    }
+    return config
+  },
+  transpilePackages: ['vexflow', 'tone'],
 };
 
 export default nextConfig;
