@@ -6,6 +6,7 @@ import Link from 'next/link'
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
@@ -15,6 +16,18 @@ export default function DashboardPage() {
         data: { user },
       } = await supabase.auth.getUser()
       setUser(user)
+
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+
+        if (data && data.length > 0) {
+          setProfile(data[0])
+        }
+      }
+
       setLoading(false)
     }
 
@@ -32,19 +45,19 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-indigo-600">FretMaestro</h1>
           <div className="flex gap-4">
             <Link
-              href="/scores"
+              href="/dashboard/scores"
               className="text-gray-700 hover:text-indigo-600 font-medium"
             >
               Scores
             </Link>
             <Link
-              href="/practice"
+              href="/dashboard/practice"
               className="text-gray-700 hover:text-indigo-600 font-medium"
             >
               Practice
             </Link>
             <Link
-              href="/settings"
+              href="/dashboard/settings"
               className="text-gray-700 hover:text-indigo-600 font-medium"
             >
               Settings
@@ -52,7 +65,7 @@ export default function DashboardPage() {
             <button
               onClick={async () => {
                 await supabase.auth.signOut()
-                window.location.href = '/login'
+                window.location.href = '/auth/login'
               }}
               className="text-red-600 hover:text-red-700 font-medium"
             >
@@ -64,14 +77,16 @@ export default function DashboardPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="bg-white rounded-lg shadow p-8">
-          <h2 className="text-3xl font-bold mb-4">Welcome back!</h2>
+          <h2 className="text-3xl font-bold mb-4 text-gray-900">
+            Welcome Back{profile?.full_name ? ` ${profile.full_name.split(' ')[0]}` : ''}!
+          </h2>
           <p className="text-gray-600 mb-6">
             You&apos;re logged in as <span className="font-medium">{user?.email}</span>
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Link
-              href="/scores/upload"
+              href="/dashboard/scores/upload"
               className="bg-indigo-50 hover:bg-indigo-100 rounded-lg p-6 cursor-pointer transition"
             >
               <h3 className="text-lg font-semibold text-indigo-900 mb-2">
@@ -83,7 +98,7 @@ export default function DashboardPage() {
             </Link>
 
             <Link
-              href="/scores"
+              href="/dashboard/scores"
               className="bg-blue-50 hover:bg-blue-100 rounded-lg p-6 cursor-pointer transition"
             >
               <h3 className="text-lg font-semibold text-blue-900 mb-2">My Scores</h3>
@@ -91,7 +106,7 @@ export default function DashboardPage() {
             </Link>
 
             <Link
-              href="/practice"
+              href="/dashboard/practice"
               className="bg-green-50 hover:bg-green-100 rounded-lg p-6 cursor-pointer transition"
             >
               <h3 className="text-lg font-semibold text-green-900 mb-2">

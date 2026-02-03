@@ -17,7 +17,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [fullName, setFullName] = useState('')
   const [updating, setUpdating] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -33,12 +33,21 @@ export default function SettingsPage() {
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single()
 
-        if (error) throw error
-
-        setProfile(data)
-        setFullName(data.full_name || '')
+        if (error || !data || data.length === 0) {
+          // If profile doesn't exist, create a default one
+          const defaultProfile: Profile = {
+            id: user.id,
+            email: user.email || '',
+            full_name: null,
+            subscription_tier: 'free',
+            subscription_status: null,
+          }
+          setProfile(defaultProfile)
+        } else {
+          setProfile(data[0])
+          setFullName(data[0].full_name || '')
+        }
       } catch (err) {
         console.error('Failed to fetch profile:', err)
       } finally {
@@ -59,16 +68,24 @@ export default function SettingsPage() {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ full_name: fullName })
-        .eq('id', profile.id)
+        .upsert({
+          id: profile.id,
+          email: profile.email,
+          full_name: fullName,
+          subscription_tier: profile.subscription_tier,
+          subscription_status: profile.subscription_status,
+        })
 
       if (error) throw error
 
       setProfile({ ...profile, full_name: fullName })
-      setMessage('Profile updated successfully')
+      setMessage({ text: 'Profile updated successfully', type: 'success' })
       setTimeout(() => setMessage(null), 3000)
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Failed to update profile')
+      setMessage({
+        text: err instanceof Error ? err.message : 'Failed to update profile',
+        type: 'error',
+      })
     } finally {
       setUpdating(false)
     }
@@ -76,7 +93,7 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    window.location.href = '/login'
+    window.location.href = '/auth/login'
   }
 
   if (loading) {
@@ -98,10 +115,10 @@ export default function SettingsPage() {
             <Link href="/dashboard" className="text-gray-700 hover:text-indigo-600 font-medium">
               Dashboard
             </Link>
-            <Link href="/scores" className="text-gray-700 hover:text-indigo-600 font-medium">
+            <Link href="/dashboard/scores" className="text-gray-700 hover:text-indigo-600 font-medium">
               Scores
             </Link>
-            <Link href="/practice" className="text-gray-700 hover:text-indigo-600 font-medium">
+            <Link href="/dashboard/practice" className="text-gray-700 hover:text-indigo-600 font-medium">
               Practice
             </Link>
             <Link href="/settings" className="text-indigo-600 font-medium">
@@ -137,14 +154,20 @@ export default function SettingsPage() {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
                   placeholder="Your full name"
                 />
               </div>
 
               {message && (
-                <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-lg text-sm">
-                  {message}
+                <div
+                  className={`px-4 py-3 rounded-lg text-sm ${
+                    message.type === 'success'
+                      ? 'bg-green-50 border border-green-200 text-green-600'
+                      : 'bg-red-50 border border-red-200 text-red-600'
+                  }`}
+                >
+                  {message.text}
                 </div>
               )}
 

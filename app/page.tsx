@@ -8,11 +8,11 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-indigo-600">FretMaestro</h1>
           <div className="flex gap-4">
-            <Link href="/login" className="text-gray-700 hover:text-indigo-600 font-medium">
+            <Link href="/auth/login" className="border border-gray-300 text-gray-700 hover:border-indigo-600 hover:text-indigo-600 px-4 py-2 rounded-lg font-medium transition">
               Log in
             </Link>
             <Link
-              href="/signup"
+              href="/auth/signup"
               className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition"
             >
               Sign up
@@ -32,13 +32,13 @@ export default function Home() {
         </p>
         <div className="flex gap-4 justify-center">
           <Link
-            href="/signup"
+            href="/auth/signup"
             className="bg-indigo-600 text-white hover:bg-indigo-700 px-8 py-3 rounded-lg font-semibold transition"
           >
             Get Started Free
           </Link>
           <Link
-            href="/login"
+            href="/auth/login"
             className="border border-indigo-600 text-indigo-600 hover:bg-indigo-50 px-8 py-3 rounded-lg font-semibold transition"
           >
             Sign In
@@ -49,7 +49,7 @@ export default function Home() {
       {/* Features Section */}
       <section className="bg-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h3 className="text-3xl font-bold text-center mb-12">Powerful Features</h3>
+          <h3 className="text-3xl font-bold text-center mb-12 text-gray-900">Powerful Features</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-gray-50 p-8 rounded-lg">
               <h4 className="text-lg font-semibold mb-4 text-gray-900">Sheet Music Rendering</h4>
@@ -79,10 +79,10 @@ export default function Home() {
       {/* Pricing Section */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h3 className="text-3xl font-bold text-center mb-12">Simple Pricing</h3>
+          <h3 className="text-3xl font-bold text-center mb-12 text-gray-900">Simple Pricing</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl mx-auto">
             <div className="border border-gray-300 rounded-lg p-8">
-              <h4 className="text-2xl font-bold mb-4">Free Tier</h4>
+              <h4 className="text-2xl font-bold mb-4 text-gray-900">Free Tier</h4>
               <p className="text-gray-600 mb-4">30-second preview playback</p>
               <ul className="text-gray-600 space-y-2 mb-6">
                 <li>✓ Upload scores</li>
@@ -90,7 +90,7 @@ export default function Home() {
                 <li>✓ 30-second audio preview</li>
               </ul>
               <Link
-                href="/signup"
+                href="/auth/signup"
                 className="block text-center bg-gray-100 text-gray-900 hover:bg-gray-200 px-6 py-2 rounded-lg font-semibold transition"
               >
                 Get Started
@@ -106,7 +106,7 @@ export default function Home() {
                 <li>✓ Practice tracking</li>
               </ul>
               <Link
-                href="/signup"
+                href="/auth/signup"
                 className="block text-center bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-2 rounded-lg font-semibold transition"
               >
                 Start Free Trial

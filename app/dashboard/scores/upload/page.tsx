@@ -78,7 +78,7 @@ export default function UploadScorePage() {
 
       if (scoreError) throw scoreError
 
-      router.push('/scores')
+      router.push('/dashboard/scores')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
@@ -97,10 +97,10 @@ export default function UploadScorePage() {
             <Link href="/dashboard" className="text-gray-700 hover:text-indigo-600 font-medium">
               Dashboard
             </Link>
-            <Link href="/scores" className="text-indigo-600 font-medium">
+            <Link href="/dashboard/scores" className="text-indigo-600 font-medium">
               Scores
             </Link>
-            <Link href="/practice" className="text-gray-700 hover:text-indigo-600 font-medium">
+            <Link href="/dashboard/practice" className="text-gray-700 hover:text-indigo-600 font-medium">
               Practice
             </Link>
           </div>
@@ -120,7 +120,7 @@ export default function UploadScorePage() {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
                 placeholder="e.g., Stairway to Heaven"
                 required
               />
@@ -134,7 +134,7 @@ export default function UploadScorePage() {
                 type="text"
                 value={composer}
                 onChange={(e) => setComposer(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
                 placeholder="e.g., Jimmy Page"
               />
             </div>
@@ -146,7 +146,7 @@ export default function UploadScorePage() {
               <select
                 value={instrument}
                 onChange={(e) => setInstrument(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
               >
                 <option value="guitar">Guitar</option>
                 <option value="piano">Piano</option>
@@ -205,7 +205,7 @@ export default function UploadScorePage() {
                 {loading ? 'Uploading...' : 'Upload Score'}
               </button>
               <Link
-                href="/scores"
+                href="/dashboard/scores"
                 className="flex-1 text-center border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-2 px-4 rounded-lg transition"
               >
                 Cancel
