@@ -14,13 +14,13 @@ export default function PracticePage() {
             <Link href="/dashboard" className="text-gray-700 hover:text-indigo-600 font-medium">
               Dashboard
             </Link>
-            <Link href="/scores" className="text-gray-700 hover:text-indigo-600 font-medium">
+            <Link href="/dashboard/scores" className="text-gray-700 hover:text-indigo-600 font-medium">
               Scores
             </Link>
-            <Link href="/practice" className="text-indigo-600 font-medium">
+            <Link href="/dashboard/practice" className="text-indigo-600 font-medium">
               Practice
             </Link>
-            <Link href="/settings" className="text-gray-700 hover:text-indigo-600 font-medium">
+            <Link href="/dashboard/settings" className="text-gray-700 hover:text-indigo-600 font-medium">
               Settings
             </Link>
           </div>
@@ -36,7 +36,7 @@ export default function PracticePage() {
             Select a score to start practicing with real-time pitch detection feedback.
           </p>
           <Link
-            href="/scores"
+            href="/dashboard/scores"
             className="inline-block bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-2 rounded-lg font-semibold transition"
           >
             Go to Scores

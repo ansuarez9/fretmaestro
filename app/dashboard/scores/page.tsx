@@ -50,13 +50,13 @@ export default function ScoresPage() {
             <Link href="/dashboard" className="text-gray-700 hover:text-indigo-600 font-medium">
               Dashboard
             </Link>
-            <Link href="/scores" className="text-indigo-600 font-medium">
+            <Link href="/dashboard/scores" className="text-indigo-600 font-medium">
               Scores
             </Link>
-            <Link href="/practice" className="text-gray-700 hover:text-indigo-600 font-medium">
+            <Link href="/dashboard/practice" className="text-gray-700 hover:text-indigo-600 font-medium">
               Practice
             </Link>
-            <Link href="/settings" className="text-gray-700 hover:text-indigo-600 font-medium">
+            <Link href="/dashboard/settings" className="text-gray-700 hover:text-indigo-600 font-medium">
               Settings
             </Link>
           </div>
@@ -67,7 +67,7 @@ export default function ScoresPage() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">My Scores</h1>
           <Link
-            href="/scores/upload"
+            href="/dashboard/scores/upload"
             className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition"
           >
             Upload Score
@@ -86,7 +86,7 @@ export default function ScoresPage() {
           <div className="text-center py-12">
             <p className="text-gray-600 mb-4">No scores uploaded yet</p>
             <Link
-              href="/scores/upload"
+              href="/dashboard/scores/upload"
               className="inline-block bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-2 rounded-lg font-medium transition"
             >
               Upload Your First Score
@@ -97,7 +97,7 @@ export default function ScoresPage() {
             {scores.map((score) => (
               <Link
                 key={score.id}
-                href={`/scores/${score.id}`}
+                href={`/dashboard/scores/${score.id}`}
                 className="bg-white rounded-lg shadow hover:shadow-lg transition p-6 cursor-pointer"
               >
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{score.title}</h3>

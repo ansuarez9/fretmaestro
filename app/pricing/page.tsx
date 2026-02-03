@@ -10,11 +10,11 @@ export default function PricingPage() {
             FretMaestro
           </Link>
           <div className="flex gap-4">
-            <Link href="/login" className="text-gray-700 hover:text-indigo-600 font-medium">
+            <Link href="/auth/login" className="border border-gray-300 text-gray-700 hover:border-indigo-600 hover:text-indigo-600 px-4 py-2 rounded-lg font-medium transition">
               Log in
             </Link>
             <Link
-              href="/signup"
+              href="/auth/signup"
               className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition"
             >
               Sign up
@@ -71,7 +71,7 @@ export default function PricingPage() {
             </ul>
 
             <Link
-              href="/signup"
+              href="/auth/signup"
               className="block text-center bg-gray-100 text-gray-900 hover:bg-gray-200 px-6 py-3 rounded-lg font-semibold transition"
             >
               Get Started
@@ -122,7 +122,7 @@ export default function PricingPage() {
             </ul>
 
             <Link
-              href="/signup"
+              href="/auth/signup"
               className="block text-center bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-3 rounded-lg font-semibold transition"
             >
               Start Free Trial
@@ -137,7 +137,7 @@ export default function PricingPage() {
       {/* FAQ Section */}
       <section className="bg-white py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
+          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">Frequently Asked Questions</h2>
 
           <div className="space-y-8">
             <div>
@@ -184,7 +184,7 @@ export default function PricingPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-white mb-6">Ready to start learning?</h2>
           <Link
-            href="/signup"
+            href="/auth/signup"
             className="inline-block bg-white text-indigo-600 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold transition"
           >
             Get Started Free

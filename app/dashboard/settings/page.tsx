@@ -121,7 +121,7 @@ export default function SettingsPage() {
             <Link href="/dashboard/practice" className="text-gray-700 hover:text-indigo-600 font-medium">
               Practice
             </Link>
-            <Link href="/settings" className="text-indigo-600 font-medium">
+            <Link href="/dashboard/settings" className="text-indigo-600 font-medium">
               Settings
             </Link>
           </div>
