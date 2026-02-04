@@ -1,7 +1,10 @@
 /**
- * Basic MusicXML parser
+ * MusicXML parser
  * Extracts notes and timing information from MusicXML content
+ * Supports both uncompressed (.musicxml) and compressed (.mxl) formats
  */
+
+import JSZip from 'jszip'
 
 export interface ParsedNote {
   pitch: string // e.g., "C4", "G#5"
@@ -28,15 +31,80 @@ export interface ParsedScore {
 }
 
 /**
- * Parse MusicXML string and extract note data
+ * Check if content is a ZIP file (MXL format)
  */
-export async function parseMusicXML(xmlString: string): Promise<ParsedScore> {
+function isZipFile(data: ArrayBuffer | string): boolean {
+  if (typeof data === 'string') {
+    // Check for ZIP magic number in string form
+    return data.charCodeAt(0) === 0x50 && data.charCodeAt(1) === 0x4b
+  }
+  const view = new Uint8Array(data)
+  // ZIP files start with PK (0x50 0x4b)
+  return view[0] === 0x50 && view[1] === 0x4b
+}
+
+/**
+ * Extract MusicXML content from a compressed MXL file
+ */
+async function extractMxl(data: ArrayBuffer | string): Promise<string> {
+  const zip = await JSZip.loadAsync(data)
+
+  // First, try to find the rootfile from META-INF/container.xml
+  const containerFile = zip.file('META-INF/container.xml')
+  if (containerFile) {
+    const containerXml = await containerFile.async('string')
+    const parser = new DOMParser()
+    const containerDoc = parser.parseFromString(containerXml, 'text/xml')
+    const rootfile = containerDoc.querySelector('rootfile')
+    const fullPath = rootfile?.getAttribute('full-path')
+
+    if (fullPath) {
+      const musicXmlFile = zip.file(fullPath)
+      if (musicXmlFile) {
+        return musicXmlFile.async('string')
+      }
+    }
+  }
+
+  // Fallback: look for any .xml file that's not in META-INF
+  const xmlFiles = Object.keys(zip.files).filter(
+    (name) => name.endsWith('.xml') && !name.startsWith('META-INF')
+  )
+
+  if (xmlFiles.length > 0) {
+    const musicXmlFile = zip.file(xmlFiles[0])
+    if (musicXmlFile) {
+      return musicXmlFile.async('string')
+    }
+  }
+
+  throw new Error('No MusicXML file found in the compressed archive')
+}
+
+/**
+ * Parse MusicXML content (handles both .musicxml and .mxl formats)
+ * @param content - Either a string (XML content) or ArrayBuffer (for binary MXL files)
+ */
+export async function parseMusicXML(content: string | ArrayBuffer): Promise<ParsedScore> {
   try {
+    let xmlString: string
+
+    // Check if it's a compressed MXL file
+    if (isZipFile(content)) {
+      xmlString = await extractMxl(content)
+    } else if (typeof content === 'string') {
+      xmlString = content
+    } else {
+      // ArrayBuffer but not a ZIP - try to decode as UTF-8
+      const decoder = new TextDecoder('utf-8')
+      xmlString = decoder.decode(content)
+    }
+
     const parser = new DOMParser()
     const xmlDoc = parser.parseFromString(xmlString, 'text/xml')
 
     if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
-      throw new Error('Invalid XML')
+      throw new Error('Invalid XML format')
     }
 
     const score: ParsedScore = {
@@ -47,16 +115,26 @@ export async function parseMusicXML(xmlString: string): Promise<ParsedScore> {
 
     // Extract title and composer
     const title = xmlDoc.querySelector('score-partwise > movement-title')?.textContent
-    const composer = xmlDoc.querySelector('score-partwise > identification > composer')?.textContent
+    const composer = xmlDoc.querySelector('score-partwise > identification > creator[type="composer"]')?.textContent
+      || xmlDoc.querySelector('score-partwise > identification > composer')?.textContent
     if (title) score.title = title
     if (composer) score.composer = composer
 
-    // Extract attributes (tempo, time signature, etc.)
-    const attributes = xmlDoc.querySelector('attributes')
-    if (attributes) {
-      const tempoElement = attributes.querySelector('tempo')
-      if (tempoElement) {
-        score.tempo = parseInt(tempoElement.textContent || '120', 10)
+    // Look for tempo in sound element or metronome
+    const soundElement = xmlDoc.querySelector('sound[tempo]')
+    if (soundElement) {
+      const tempoAttr = soundElement.getAttribute('tempo')
+      if (tempoAttr) {
+        score.tempo = parseFloat(tempoAttr)
+      }
+    } else {
+      // Try metronome marking
+      const metronome = xmlDoc.querySelector('metronome')
+      if (metronome) {
+        const perMinute = metronome.querySelector('per-minute')?.textContent
+        if (perMinute) {
+          score.tempo = parseFloat(perMinute)
+        }
       }
     }
 
@@ -80,15 +158,25 @@ export async function parseMusicXML(xmlString: string): Promise<ParsedScore> {
         parsedMeasure.divisions = divisions
       }
 
+      // Check for tempo changes in this measure
+      const measureSound = measure.querySelector('sound[tempo]')
+      if (measureSound) {
+        const tempoAttr = measureSound.getAttribute('tempo')
+        if (tempoAttr) {
+          parsedMeasure.tempo = parseFloat(tempoAttr)
+        }
+      }
+
       // Parse notes
       const notes = measure.querySelectorAll('note')
       notes.forEach((noteElement) => {
         const pitch = noteElement.querySelector('pitch')
         const duration = noteElement.querySelector('duration')
         const rest = noteElement.querySelector('rest')
+        const chord = noteElement.querySelector('chord')
 
         if (rest) {
-          // Skip rests
+          // Skip rests but advance time
           if (duration) {
             currentTime += parseInt(duration.textContent || '0', 10)
           }
@@ -105,17 +193,23 @@ export async function parseMusicXML(xmlString: string): Promise<ParsedScore> {
 
         const dur = parseInt(duration.textContent || '0', 10)
         const noteName = buildNoteName(step, alter)
-        const midiNumber = noteNameToMidi(noteName, parseInt(octave, 10))
+        const midiNumber = noteNameToMidi(noteName, parseInt(octave, 10), alter)
+
+        // For chord notes, don't advance currentTime
+        const noteStartTime = chord ? currentTime - dur : currentTime
 
         parsedMeasure.notes.push({
           pitch: noteName + octave,
           midi: midiNumber,
           duration: dur / divisions,
-          startTime: currentTime / divisions,
+          startTime: (chord ? noteStartTime : currentTime) / divisions,
           velocity: 0.8,
         })
 
-        currentTime += dur
+        // Only advance time for non-chord notes
+        if (!chord) {
+          currentTime += dur
+        }
       })
 
       score.measures.push(parsedMeasure)
@@ -139,7 +233,7 @@ export async function parseMusicXML(xmlString: string): Promise<ParsedScore> {
 /**
  * Build note name from step and alter
  */
-function buildNoteName(step: string, alter?: string): string {
+function buildNoteName(step: string, alter?: string | null): string {
   let name = step
   if (alter === '1') name += '#'
   else if (alter === '-1') name += 'b'
@@ -149,7 +243,7 @@ function buildNoteName(step: string, alter?: string): string {
 /**
  * Convert note name and octave to MIDI number
  */
-function noteNameToMidi(step: string, octave: number): number {
+function noteNameToMidi(step: string, octave: number, alter?: string | null): number {
   const notes: Record<string, number> = {
     C: 0,
     D: 2,
@@ -160,10 +254,11 @@ function noteNameToMidi(step: string, octave: number): number {
     B: 11,
   }
 
-  let baseNote = notes[step] ?? 0
+  let baseNote = notes[step.charAt(0)] ?? 0
 
-  // Handle sharps and flats in MusicXML (via alter)
-  // Note: alter is handled separately in buildNoteName
+  // Handle accidentals
+  if (alter === '1') baseNote += 1
+  else if (alter === '-1') baseNote -= 1
 
   return (octave + 1) * 12 + baseNote
 }

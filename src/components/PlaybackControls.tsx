@@ -6,12 +6,15 @@ import { usePlaybackStore } from '@/lib/store/usePlaybackStore'
 import type { ScorePlayer } from '@/lib/audio/ScorePlayer'
 import { formatTime } from '@/lib/utils'
 
+const FREE_TIER_LIMIT = 30 // seconds
+
 interface PlaybackControlsProps {
   scorePlayer: ScorePlayer | null
   disabled?: boolean
+  isFreeTier?: boolean
 }
 
-export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackControlsProps) {
+export function PlaybackControls({ scorePlayer, disabled = false, isFreeTier = true }: PlaybackControlsProps) {
   const {
     isPlaying,
     setIsPlaying,
@@ -30,9 +33,30 @@ export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackCont
   const wasPlayingRef = useRef(false)
   const sliderRef = useRef<HTMLInputElement>(null)
 
+  // Calculate effective max duration based on subscription tier
+  const effectiveMaxDuration = isFreeTier ? Math.min(duration, FREE_TIER_LIMIT) : duration
+  const progressPercent = effectiveMaxDuration > 0 ? (currentTime / effectiveMaxDuration) * 100 : 0
+
+  // Stop playback when reaching free tier limit
+  useEffect(() => {
+    if (isFreeTier && isPlaying && currentTime >= FREE_TIER_LIMIT) {
+      if (scorePlayer) {
+        scorePlayer.pause()
+        scorePlayer.setPosition(FREE_TIER_LIMIT)
+      }
+      setIsPlaying(false)
+      setCurrentTime(FREE_TIER_LIMIT)
+    }
+  }, [isFreeTier, isPlaying, currentTime, scorePlayer, setIsPlaying, setCurrentTime])
+
   // Play/Pause toggle
   const handlePlayPause = useCallback(async () => {
     if (!scorePlayer || disabled) return
+
+    // Don't allow play if at the free tier limit
+    if (isFreeTier && currentTime >= FREE_TIER_LIMIT) {
+      return
+    }
 
     if (isPlaying) {
       scorePlayer.pause()
@@ -41,7 +65,7 @@ export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackCont
       scorePlayer.play()
       setIsPlaying(true)
     }
-  }, [scorePlayer, isPlaying, setIsPlaying, disabled])
+  }, [scorePlayer, isPlaying, setIsPlaying, disabled, isFreeTier, currentTime])
 
   // Stop playback
   const handleStop = useCallback(() => {
@@ -76,11 +100,17 @@ export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackCont
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!scorePlayer) return
 
-      const newTime = parseFloat(e.target.value)
+      let newTime = parseFloat(e.target.value)
+
+      // Clamp to free tier limit
+      if (isFreeTier && newTime > FREE_TIER_LIMIT) {
+        newTime = FREE_TIER_LIMIT
+      }
+
       scorePlayer.setPosition(newTime)
       setCurrentTime(newTime)
     },
-    [scorePlayer, setCurrentTime]
+    [scorePlayer, setCurrentTime, isFreeTier]
   )
 
   // Handle slider drag
@@ -93,11 +123,15 @@ export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackCont
   }, [isPlaying, scorePlayer, setIsPlaying])
 
   const handleSliderMouseUp = useCallback(() => {
+    // Don't resume if at free tier limit
+    if (isFreeTier && currentTime >= FREE_TIER_LIMIT) {
+      return
+    }
     if (wasPlayingRef.current && scorePlayer) {
       scorePlayer.play()
       setIsPlaying(true)
     }
-  }, [scorePlayer, setIsPlaying])
+  }, [scorePlayer, setIsPlaying, isFreeTier, currentTime])
 
   // Tempo change
   const handleTempoChange = useCallback(
@@ -165,7 +199,7 @@ export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackCont
     return () => window.removeEventListener('keydown', handleKeyPress)
   }, [handlePlayPause, handleStop, handleRestart])
 
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0
+  const isAtLimit = isFreeTier && currentTime >= FREE_TIER_LIMIT
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-4 space-y-4">
@@ -186,7 +220,7 @@ export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackCont
           onClick={handlePlayPause}
           className="p-4 bg-indigo-600 rounded-full hover:bg-indigo-700 transition disabled:opacity-50 disabled:bg-gray-400"
           aria-label={isPlaying ? 'Pause' : 'Play'}
-          disabled={!scorePlayer || disabled}
+          disabled={!scorePlayer || disabled || isAtLimit}
         >
           {isPlaying ? (
             <Pause className="w-6 h-6 text-white" />
@@ -216,7 +250,7 @@ export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackCont
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
             <div
               className="h-full bg-indigo-600 transition-all duration-100"
-              style={{ width: `${progressPercent}%` }}
+              style={{ width: `${Math.min(progressPercent, 100)}%` }}
             />
           </div>
           <input
@@ -224,7 +258,7 @@ export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackCont
             type="range"
             value={currentTime}
             min={0}
-            max={duration || 100}
+            max={effectiveMaxDuration || 100}
             step={0.1}
             onChange={handleTimeChange}
             onMouseDown={handleSliderMouseDown}
@@ -237,9 +271,16 @@ export function PlaybackControls({ scorePlayer, disabled = false }: PlaybackCont
         </div>
 
         <span className="text-sm text-gray-600 w-12 font-mono">
-          {formatTime(duration)}
+          {formatTime(effectiveMaxDuration)}
         </span>
       </div>
+
+      {/* Free tier limit indicator */}
+      {isFreeTier && duration > FREE_TIER_LIMIT && (
+        <div className="text-xs text-amber-600 text-center">
+          Free tier: {FREE_TIER_LIMIT} second preview
+        </div>
+      )}
 
       {/* Secondary controls row */}
       <div className="flex items-center justify-between flex-wrap gap-4">

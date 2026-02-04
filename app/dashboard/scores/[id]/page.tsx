@@ -11,6 +11,7 @@ import { PlaybackControls } from '@/components/PlaybackControls'
 import { ScorePlayer } from '@/lib/audio/ScorePlayer'
 import { usePlaybackStore } from '@/lib/store/usePlaybackStore'
 import { useScoreStore, type Score } from '@/lib/store/useScoreStore'
+import { Pencil } from 'lucide-react'
 
 export default function ScoreViewerPage() {
   const params = useParams()
@@ -34,7 +35,57 @@ export default function ScoreViewerPage() {
   const [scorePlayer, setScorePlayer] = useState<ScorePlayer | null>(null)
   const [playerReady, setPlayerReady] = useState(false)
 
+  // Edit mode state
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editComposer, setEditComposer] = useState('')
+  const [editInstrument, setEditInstrument] = useState('guitar')
+  const [saving, setSaving] = useState(false)
+
   const updateIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Open edit modal
+  const handleEditClick = useCallback(() => {
+    if (currentScore) {
+      setEditTitle(currentScore.title)
+      setEditComposer(currentScore.composer || '')
+      setEditInstrument(currentScore.instrument || 'guitar')
+      setShowEditModal(true)
+    }
+  }, [currentScore])
+
+  // Save edited score
+  const handleSaveEdit = useCallback(async () => {
+    if (!currentScore || !editTitle.trim()) return
+
+    setSaving(true)
+    try {
+      const { error: updateError } = await supabase
+        .from('scores')
+        .update({
+          title: editTitle.trim(),
+          composer: editComposer.trim() || null,
+          instrument: editInstrument,
+        })
+        .eq('id', currentScore.id)
+
+      if (updateError) throw updateError
+
+      // Update local state
+      setCurrentScore({
+        ...currentScore,
+        title: editTitle.trim(),
+        composer: editComposer.trim() || null,
+        instrument: editInstrument,
+      })
+
+      setShowEditModal(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update score')
+    } finally {
+      setSaving(false)
+    }
+  }, [currentScore, editTitle, editComposer, editInstrument, supabase, setCurrentScore])
 
   // Fetch score and MusicXML
   useEffect(() => {
@@ -63,9 +114,9 @@ export default function ScoreViewerPage() {
         if (fileError) throw fileError
         if (!fileData) throw new Error('MusicXML file not found')
 
-        // Parse the MusicXML content
-        const xmlContent = await fileData.text()
-        const parsed = await parseMusicXML(xmlContent)
+        // Parse the MusicXML content (supports both .musicxml and .mxl formats)
+        const fileBuffer = await fileData.arrayBuffer()
+        const parsed = await parseMusicXML(fileBuffer)
         setParsedScore(parsed)
 
         // Convert to VexFlow format
@@ -213,7 +264,16 @@ export default function ScoreViewerPage() {
 
           {currentScore && (
             <div className="mt-4">
-              <h1 className="text-3xl font-bold text-gray-900">{currentScore.title}</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold text-gray-900">{currentScore.title}</h1>
+                <button
+                  onClick={handleEditClick}
+                  className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                  aria-label="Edit score details"
+                >
+                  <Pencil className="w-5 h-5" />
+                </button>
+              </div>
               {currentScore.composer && (
                 <p className="text-gray-600 mt-1">by {currentScore.composer}</p>
               )}
@@ -239,7 +299,7 @@ export default function ScoreViewerPage() {
         {!loading && !error && vexFlowScore && (
           <div className="space-y-6">
             {/* Playback controls */}
-            <PlaybackControls scorePlayer={scorePlayer} disabled={!playerReady} />
+            <PlaybackControls scorePlayer={scorePlayer} disabled={!playerReady} isFreeTier={true} />
 
             {/* Audio initialization notice */}
             {!playerReady && parsedScore && (
@@ -283,6 +343,77 @@ export default function ScoreViewerPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Edit Score Details</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
+                  placeholder="Score title"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Composer
+                </label>
+                <input
+                  type="text"
+                  value={editComposer}
+                  onChange={(e) => setEditComposer(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
+                  placeholder="Composer name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Instrument
+                </label>
+                <select
+                  value={editInstrument}
+                  onChange={(e) => setEditInstrument(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
+                >
+                  <option value="guitar">Guitar</option>
+                  <option value="piano">Piano</option>
+                  <option value="violin">Violin</option>
+                  <option value="flute">Flute</option>
+                  <option value="trumpet">Trumpet</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium transition"
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving || !editTitle.trim()}
+                className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-400 rounded-lg font-medium transition"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

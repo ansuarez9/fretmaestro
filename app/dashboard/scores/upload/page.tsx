@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -13,27 +13,61 @@ export default function UploadScorePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
+  const validateFile = useCallback((selectedFile: File): boolean => {
     setFileError(null)
 
-    if (selectedFile) {
-      if (!selectedFile.name.endsWith('.musicxml')) {
-        setFileError('Only MusicXML files are supported')
-        setFile(null)
-        return
-      }
-      if (selectedFile.size > 50 * 1024 * 1024) {
-        setFileError('File size must be less than 50MB')
-        setFile(null)
-        return
-      }
+    const validExtensions = ['.musicxml', '.mxl', '.xml']
+    const hasValidExtension = validExtensions.some((ext) =>
+      selectedFile.name.toLowerCase().endsWith(ext)
+    )
+    if (!hasValidExtension) {
+      setFileError('Only MusicXML files (.musicxml, .mxl, .xml) are supported')
+      return false
+    }
+    if (selectedFile.size > 50 * 1024 * 1024) {
+      setFileError('File size must be less than 50MB')
+      return false
+    }
+    return true
+  }, [])
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]
+    if (selectedFile && validateFile(selectedFile)) {
       setFile(selectedFile)
+    } else {
+      setFile(null)
     }
   }
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const droppedFile = e.dataTransfer.files?.[0]
+    if (droppedFile && validateFile(droppedFile)) {
+      setFile(droppedFile)
+    } else {
+      setFile(null)
+    }
+  }, [validateFile])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -160,27 +194,41 @@ export default function UploadScorePage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 MusicXML File *
               </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-indigo-500 transition">
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition ${
+                  isDragging
+                    ? 'border-indigo-500 bg-indigo-50'
+                    : file
+                      ? 'border-green-400 bg-green-50'
+                      : 'border-gray-300 hover:border-indigo-500'
+                }`}
+              >
                 <input
                   type="file"
-                  accept=".musicxml"
+                  accept=".musicxml,.mxl,.xml"
                   onChange={handleFileChange}
                   className="hidden"
                   id="file-input"
-                  required
                 />
-                <label htmlFor="file-input" className="cursor-pointer">
-                  {file ? (
+                <label htmlFor="file-input" className="cursor-pointer block">
+                  {isDragging ? (
+                    <div className="text-indigo-600">
+                      <p className="font-semibold">Drop your file here</p>
+                    </div>
+                  ) : file ? (
                     <div className="text-green-600">
                       <p className="font-semibold">{file.name}</p>
-                      <p className="text-sm">Click to change file</p>
+                      <p className="text-sm">Click or drag to change file</p>
                     </div>
                   ) : (
                     <div>
                       <p className="text-gray-600 font-medium">
                         Click to upload or drag and drop
                       </p>
-                      <p className="text-sm text-gray-500">MusicXML files only</p>
+                      <p className="text-sm text-gray-500">MusicXML files (.musicxml, .mxl, .xml)</p>
                     </div>
                   )}
                 </label>
@@ -216,10 +264,14 @@ export default function UploadScorePage() {
           <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="font-semibold text-blue-900 mb-2">How to get a MusicXML file</h3>
             <ul className="text-blue-800 text-sm space-y-1">
-              <li>• Use MuseScore: Export your score as MusicXML</li>
-              <li>• Use Finale or Sibelius: Export as MusicXML</li>
-              <li>• Convert from PDF: Use Audiveris or similar OMR software</li>
+              <li>• <strong>MuseScore:</strong> File → Export → Select &quot;MusicXML&quot; or &quot;Compressed MusicXML (.mxl)&quot;</li>
+              <li>• <strong>Finale or Sibelius:</strong> File → Export → MusicXML</li>
+              <li>• <strong>Guitar Pro:</strong> File → Export → MusicXML</li>
+              <li>• <strong>From PDF:</strong> Use Audiveris or similar OMR software</li>
             </ul>
+            <p className="text-blue-700 text-sm mt-3">
+              We support both uncompressed (.musicxml, .xml) and compressed (.mxl) formats.
+            </p>
           </div>
         </div>
       </div>
