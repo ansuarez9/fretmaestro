@@ -4,8 +4,8 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { parseMusicXML, scoreToPlayableNotes, type ParsedScore } from '@/lib/musicxml/parser'
-import { convertParsedScoreToVexFlow, findNoteIndexAtTime, type VexFlowScore } from '@/lib/musicxml/converter'
+import { parseMusicXML, scoreToPlayableNotes, MusicXMLParseError, type ParsedScore } from '@/lib/musicxml/parser'
+import { convertParsedScoreToVexFlow, findNoteIndexAtTime, calculateMeasureTimings, type VexFlowScore, type MeasureTiming } from '@/lib/musicxml/converter'
 import { ScoreRenderer } from '@/components/ScoreRenderer'
 import { PlaybackControls } from '@/components/PlaybackControls'
 import { ScorePlayer } from '@/lib/audio/ScorePlayer'
@@ -26,6 +26,11 @@ export default function ScoreViewerPage() {
     setCurrentTime,
     setIsPlaying,
     isPlaying,
+    metronomeEnabled,
+    countInEnabled,
+    loopEnabled,
+    loopStartMeasure,
+    loopEndMeasure,
   } = usePlaybackStore()
 
   const [loading, setLoading] = useState(true)
@@ -34,6 +39,8 @@ export default function ScoreViewerPage() {
   const [parsedScore, setParsedScore] = useState<ParsedScore | null>(null)
   const [scorePlayer, setScorePlayer] = useState<ScorePlayer | null>(null)
   const [playerReady, setPlayerReady] = useState(false)
+  const [isFreeTier, setIsFreeTier] = useState(true) // safe default
+  const [measureTimings, setMeasureTimings] = useState<MeasureTiming[]>([])
 
   // Edit mode state
   const [showEditModal, setShowEditModal] = useState(false)
@@ -64,7 +71,7 @@ export default function ScoreViewerPage() {
         .from('scores')
         .update({
           title: editTitle.trim(),
-          composer: editComposer.trim() || null,
+          composer: editComposer.trim() || undefined,
           instrument: editInstrument,
         })
         .eq('id', currentScore.id)
@@ -75,7 +82,7 @@ export default function ScoreViewerPage() {
       setCurrentScore({
         ...currentScore,
         title: editTitle.trim(),
-        composer: editComposer.trim() || null,
+        composer: editComposer.trim() || undefined,
         instrument: editInstrument,
       })
 
@@ -93,6 +100,19 @@ export default function ScoreViewerPage() {
       try {
         setLoading(true)
         setError(null)
+
+        // Fetch user profile for subscription tier
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('subscription_tier')
+            .eq('id', user.id)
+            .single()
+          if (profileData) {
+            setIsFreeTier(profileData.subscription_tier !== 'paid')
+          }
+        }
 
         // Fetch score metadata from database
         const { data: scoreData, error: scoreError } = await supabase
@@ -119,11 +139,15 @@ export default function ScoreViewerPage() {
         const parsed = await parseMusicXML(fileBuffer)
         setParsedScore(parsed)
 
-        // Convert to VexFlow format
+        // Compute measure timings for looping
+        const timings = calculateMeasureTimings(parsed)
+        setMeasureTimings(timings)
+
+        // Convert to VexFlow format using parsed values
         const vexFlow = convertParsedScoreToVexFlow(parsed, {
-          timeSignature: '4/4',
-          keySignature: 'C',
-          clef: 'treble',
+          timeSignature: parsed.timeSignature || '4/4',
+          keySignature: parsed.keySignature || 'C',
+          clef: parsed.clef || 'treble',
         })
         setVexFlowScore(vexFlow)
 
@@ -134,7 +158,11 @@ export default function ScoreViewerPage() {
         setTempo(parsed.tempo)
       } catch (err) {
         console.error('Error fetching score:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load score')
+        if (err instanceof MusicXMLParseError) {
+          setError(err.userMessage)
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load score')
+        }
       } finally {
         setLoading(false)
       }
@@ -157,12 +185,13 @@ export default function ScoreViewerPage() {
   useEffect(() => {
     if (!parsedScore) return
 
-    const player = new ScorePlayer(true) // true = free tier limit (30 seconds)
+    const player = new ScorePlayer(isFreeTier)
 
     const initPlayer = async () => {
       try {
         await player.initialize()
         player.createSynth()
+        player.createMetronome()
 
         const playableNotes = scoreToPlayableNotes(parsedScore)
         const beatDuration = 60 / parsedScore.tempo
@@ -172,6 +201,13 @@ export default function ScoreViewerPage() {
           duration: parsedScore.totalDuration * beatDuration,
           tempo: parsedScore.tempo,
         })
+
+        player.scheduleMetronome(
+          parsedScore.totalDuration * beatDuration,
+          parsedScore.tempo,
+          parsedScore.beats,
+          parsedScore.beatType
+        )
 
         player.setTempo(parsedScore.tempo)
         setScorePlayer(player)
@@ -189,7 +225,39 @@ export default function ScoreViewerPage() {
       setScorePlayer(null)
       setPlayerReady(false)
     }
-  }, [parsedScore])
+  }, [parsedScore, isFreeTier])
+
+  // Sync metronome enabled state to player
+  useEffect(() => {
+    if (scorePlayer) {
+      scorePlayer.setMetronomeEnabled(metronomeEnabled)
+    }
+  }, [scorePlayer, metronomeEnabled])
+
+  // Sync count-in enabled state to player
+  useEffect(() => {
+    if (scorePlayer && parsedScore) {
+      scorePlayer.setCountInEnabled(countInEnabled, parsedScore.beats, parsedScore.tempo)
+    }
+  }, [scorePlayer, countInEnabled, parsedScore])
+
+  // Sync loop state to player
+  useEffect(() => {
+    if (!scorePlayer || measureTimings.length === 0) return
+
+    if (loopEnabled) {
+      const startIdx = loopStartMeasure - 1
+      const endIdx = loopEndMeasure - 1
+
+      if (startIdx >= 0 && endIdx < measureTimings.length) {
+        const startSeconds = measureTimings[startIdx].startTime
+        const endSeconds = measureTimings[endIdx].endTime
+        scorePlayer.setLoop(true, startSeconds, endSeconds)
+      }
+    } else {
+      scorePlayer.setLoop(false, 0, 0)
+    }
+  }, [scorePlayer, loopEnabled, loopStartMeasure, loopEndMeasure, measureTimings])
 
   // Sync playback position with note highlighting
   useEffect(() => {
@@ -290,8 +358,23 @@ export default function ScoreViewerPage() {
 
         {/* Error state */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6">
-            {error}
+          <div className="bg-red-50 border border-red-200 rounded-lg mb-6 p-6">
+            <h3 className="text-red-800 font-semibold text-lg mb-2">Unable to Load Score</h3>
+            <p className="text-red-600 mb-4">{error}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition"
+              >
+                Try Again
+              </button>
+              <Link
+                href="/dashboard/scores"
+                className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-100 font-medium transition"
+              >
+                Back to Scores
+              </Link>
+            </div>
           </div>
         )}
 
@@ -299,7 +382,12 @@ export default function ScoreViewerPage() {
         {!loading && !error && vexFlowScore && (
           <div className="space-y-6">
             {/* Playback controls */}
-            <PlaybackControls scorePlayer={scorePlayer} disabled={!playerReady} isFreeTier={true} />
+            <PlaybackControls
+              scorePlayer={scorePlayer}
+              disabled={!playerReady}
+              isFreeTier={isFreeTier}
+              totalMeasures={parsedScore?.measures.length || 1}
+            />
 
             {/* Audio initialization notice */}
             {!playerReady && parsedScore && (
@@ -309,17 +397,24 @@ export default function ScoreViewerPage() {
             )}
 
             {/* Free tier notice */}
-            <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm">
-              <strong>Free Tier:</strong> Playback limited to first 30 seconds.{' '}
-              <Link href="/pricing" className="underline font-medium">
-                Upgrade to Pro
-              </Link>{' '}
-              for full playback.
-            </div>
+            {isFreeTier && (
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg text-sm">
+                <strong>Free Tier:</strong> Playback limited to first 30 seconds.{' '}
+                <Link href="/pricing" className="underline font-medium">
+                  Upgrade to Pro
+                </Link>{' '}
+                for full playback.
+              </div>
+            )}
 
             {/* Score renderer */}
             <div className="bg-white rounded-lg shadow-lg p-6 overflow-x-auto">
-              <ScoreRenderer score={vexFlowScore} measuresPerSystem={4} />
+              <ScoreRenderer
+                score={vexFlowScore}
+                measuresPerSystem={4}
+                loopStartMeasure={loopEnabled ? loopStartMeasure : undefined}
+                loopEndMeasure={loopEnabled ? loopEndMeasure : undefined}
+              />
             </div>
 
             {/* Score info */}

@@ -21,6 +21,8 @@ export interface VexFlowMeasure {
   keySignature?: string
   clef?: string
   measureNumber: number
+  beats?: number
+  beatType?: number
 }
 
 export interface StaveNoteData {
@@ -157,6 +159,10 @@ function convertMeasure(
     if (options.keySignature !== 'C') {
       vexMeasure.keySignature = options.keySignature
     }
+
+    const tsParts = (options.timeSignature || '4/4').split('/')
+    vexMeasure.beats = parseInt(tsParts[0] || '4', 10)
+    vexMeasure.beatType = parseInt(tsParts[1] || '4', 10)
   }
 
   return {
@@ -246,4 +252,44 @@ export function findNoteIndexAtTime(
   }
 
   return null
+}
+
+export interface MeasureTiming {
+  measureNumber: number
+  startTime: number // in seconds
+  endTime: number   // in seconds
+}
+
+/**
+ * Calculate the start and end time (in seconds) for each measure
+ */
+export function calculateMeasureTimings(parsedScore: ParsedScore): MeasureTiming[] {
+  const beatDuration = 60 / parsedScore.tempo
+  const timings: MeasureTiming[] = []
+
+  for (const measure of parsedScore.measures) {
+    if (measure.notes.length > 0) {
+      const firstNote = measure.notes[0]
+      const lastNote = measure.notes[measure.notes.length - 1]
+      const startBeat = firstNote.startTime
+      const endBeat = lastNote.startTime + lastNote.duration
+
+      timings.push({
+        measureNumber: measure.number,
+        startTime: startBeat * beatDuration,
+        endTime: endBeat * beatDuration,
+      })
+    } else {
+      // Empty measure: estimate from time signature
+      const beatsPerMeasure = parsedScore.beats || 4
+      const prevEnd = timings.length > 0 ? timings[timings.length - 1].endTime : 0
+      timings.push({
+        measureNumber: measure.number,
+        startTime: prevEnd,
+        endTime: prevEnd + beatsPerMeasure * beatDuration,
+      })
+    }
+  }
+
+  return timings
 }

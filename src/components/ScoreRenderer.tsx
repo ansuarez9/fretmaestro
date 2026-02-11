@@ -1,3 +1,12 @@
+/**
+ * ScoreRenderer — renders VexFlow 5.0.0 notation from VexFlowScore data.
+ *
+ * Note-element matching strategy: After VexFlow draws SVG, we locate note
+ * groups by querying for elements containing ellipses (note heads). We sort
+ * both the rendered SVG groups and our tracked note data by x-position, then
+ * pair them by index. This allows playback highlighting to target the correct
+ * SVG element for each musical note.
+ */
 'use client'
 
 import React, { useRef, useEffect, useState, useCallback } from 'react'
@@ -9,6 +18,8 @@ interface ScoreRendererProps {
   score: VexFlowScore
   measuresPerSystem?: number
   highlightColor?: string
+  loopStartMeasure?: number
+  loopEndMeasure?: number
 }
 
 interface SystemLayout {
@@ -21,6 +32,8 @@ export function ScoreRenderer({
   score,
   measuresPerSystem = 4,
   highlightColor = '#EF4444', // red-500 - high contrast against black notes
+  loopStartMeasure = -1,
+  loopEndMeasure = -1,
 }: ScoreRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(800)
@@ -156,9 +169,16 @@ export function ScoreRenderer({
 
       console.log('Found note groups:', sortedGroups.length, 'Expected notes:', sortedNoteData.length)
 
+      if (Math.abs(sortedGroups.length - sortedNoteData.length) > 2) {
+        console.warn(
+          `Note element count mismatch: found ${sortedGroups.length} SVG groups but expected ${sortedNoteData.length} notes. ` +
+          'Playback highlighting may not align correctly.'
+        )
+      }
+
       setNoteElements(newNoteElements)
     })
-  }, [score, containerWidth, calculateSystems])
+  }, [score, containerWidth, calculateSystems, loopStartMeasure, loopEndMeasure])
 
   // Render a single system (row of measures)
   const renderSystem = (
@@ -190,6 +210,20 @@ export function ScoreRenderer({
 
       stave.setContext(context).draw()
 
+      // Draw loop indicator background if this measure is in the loop range
+      const measureNumber = system.startMeasureIndex + idx + 1 // 1-indexed
+      if (
+        loopStartMeasure > 0 &&
+        loopEndMeasure > 0 &&
+        measureNumber >= loopStartMeasure &&
+        measureNumber <= loopEndMeasure
+      ) {
+        context.save()
+        context.setFillStyle('rgba(99, 102, 241, 0.1)')
+        context.fillRect(x, system.y - 10, staveWidth, 120)
+        context.restore()
+      }
+
       // Create VexFlow notes
       if (measure.staveNotes.length > 0) {
         try {
@@ -200,8 +234,10 @@ export function ScoreRenderer({
             vexNotes.push(vexNote)
           })
 
-          // Create voice
-          const voice = new Voice({ numBeats: 4, beatValue: 4 })
+          // Create voice with dynamic time signature
+          const numBeats = measure.beats || 4
+          const beatValue = measure.beatType || 4
+          const voice = new Voice({ numBeats, beatValue })
           voice.setMode(Voice.Mode.SOFT) // Allow incomplete measures
           voice.addTickables(vexNotes)
 

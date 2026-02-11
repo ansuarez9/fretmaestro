@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(ls:*)",
+      "Bash(git show:*)",
+      "Bash(git -C /Users/ansuarez9/Documents/fretmaestro log --oneline Phase-1)",
+      "Bash(git -C /Users/ansuarez9/Documents/fretmaestro log --oneline adding-more-complex-features)",
+      "Bash(git -C /Users/ansuarez9/Documents/fretmaestro show Phase-1:src/lib/musicxml/converter.ts)",
+      "Bash(git -C /Users/ansuarez9/Documents/fretmaestro show Phase-1:src/components/ScoreRenderer.tsx)",
+      "Bash(git -C /Users/ansuarez9/Documents/fretmaestro ls-tree:*)",
+      "Bash(git -C /Users/ansuarez9/Documents/fretmaestro show:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

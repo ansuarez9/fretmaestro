@@ -12,8 +12,8 @@ export class PitchDetectionEngine {
   private audioContext: AudioContext | null = null
   private analyser: AnalyserNode | null = null
   private mediaStreamAudioSourceNode: MediaStreamAudioSourceNode | null = null
-  private dataArray: Uint8Array | null = null
-  private detector: PitchDetector | null = null
+  private dataArray: Float32Array<ArrayBuffer> | null = null
+  private detector: PitchDetector<Float32Array> | null = null
   private isRunning = false
   private rafId: number | null = null
   private sampleRate = 44100
@@ -37,8 +37,8 @@ export class PitchDetectionEngine {
       this.mediaStreamAudioSourceNode = this.audioContext.createMediaStreamSource(stream)
       this.mediaStreamAudioSourceNode.connect(this.analyser)
 
-      this.dataArray = new Uint8Array(this.analyser.frequencyBinCount)
-      this.detector = new PitchDetector(this.sampleRate, 80, 400)
+      this.dataArray = new Float32Array(this.analyser.fftSize)
+      this.detector = PitchDetector.forFloat32Array(this.analyser.fftSize)
     } catch (err) {
       throw new Error(
         `Failed to initialize pitch detection: ${err instanceof Error ? err.message : 'Unknown error'}`
@@ -64,17 +64,11 @@ export class PitchDetectionEngine {
         this.audioContext!.resume()
       }
 
-      // Get frequency data
-      this.analyser!.getByteFrequencyData(this.dataArray!)
-
-      // Convert byte data to float
-      const float32Data = new Float32Array(this.dataArray!.length)
-      for (let i = 0; i < this.dataArray!.length; i++) {
-        float32Data[i] = this.dataArray![i] / 255
-      }
+      // Get time-domain data for pitch detection
+      this.analyser!.getFloatTimeDomainData(this.dataArray!)
 
       // Detect pitch
-      const [frequency, clarity] = this.detector!.findPitch(float32Data)
+      const [frequency, clarity] = this.detector!.findPitch(this.dataArray!, this.sampleRate)
 
       const result: PitchDetectionResult = {
         frequency: frequency > 0 ? frequency : null,

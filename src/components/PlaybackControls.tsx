@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Play, Pause, Square, SkipBack, Volume2, VolumeX } from 'lucide-react'
+import { Play, Pause, Square, SkipBack, Volume2, VolumeX, Timer, Repeat } from 'lucide-react'
 import { usePlaybackStore } from '@/lib/store/usePlaybackStore'
 import type { ScorePlayer } from '@/lib/audio/ScorePlayer'
 import { formatTime } from '@/lib/utils'
@@ -12,9 +12,15 @@ interface PlaybackControlsProps {
   scorePlayer: ScorePlayer | null
   disabled?: boolean
   isFreeTier?: boolean
+  totalMeasures?: number
 }
 
-export function PlaybackControls({ scorePlayer, disabled = false, isFreeTier = true }: PlaybackControlsProps) {
+export function PlaybackControls({
+  scorePlayer,
+  disabled = false,
+  isFreeTier = true,
+  totalMeasures = 1,
+}: PlaybackControlsProps) {
   const {
     isPlaying,
     setIsPlaying,
@@ -26,6 +32,16 @@ export function PlaybackControls({ scorePlayer, disabled = false, isFreeTier = t
     volume,
     setVolume,
     setHighlightedNoteIndex,
+    metronomeEnabled,
+    setMetronomeEnabled,
+    countInEnabled,
+    setCountInEnabled,
+    loopEnabled,
+    setLoopEnabled,
+    loopStartMeasure,
+    setLoopStartMeasure,
+    loopEndMeasure,
+    setLoopEndMeasure,
   } = usePlaybackStore()
 
   const [isMuted, setIsMuted] = useState(false)
@@ -176,10 +192,52 @@ export function PlaybackControls({ scorePlayer, disabled = false, isFreeTier = t
     }
   }, [scorePlayer, isMuted, volume, setVolume])
 
+  // Metronome toggle
+  const handleMetronomeToggle = useCallback(() => {
+    if (!scorePlayer) return
+    const newEnabled = !metronomeEnabled
+    scorePlayer.setMetronomeEnabled(newEnabled)
+    setMetronomeEnabled(newEnabled)
+  }, [scorePlayer, metronomeEnabled, setMetronomeEnabled])
+
+  // Count-in toggle
+  const handleCountInToggle = useCallback(() => {
+    setCountInEnabled(!countInEnabled)
+  }, [countInEnabled, setCountInEnabled])
+
+  // Loop toggle
+  const handleLoopToggle = useCallback(() => {
+    setLoopEnabled(!loopEnabled)
+  }, [loopEnabled, setLoopEnabled])
+
+  // Loop start measure change
+  const handleLoopStartChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = parseInt(e.target.value, 10)
+      setLoopStartMeasure(value)
+      if (value > loopEndMeasure) {
+        setLoopEndMeasure(value)
+      }
+    },
+    [loopEndMeasure, setLoopStartMeasure, setLoopEndMeasure]
+  )
+
+  // Loop end measure change
+  const handleLoopEndChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = parseInt(e.target.value, 10)
+      setLoopEndMeasure(value)
+      if (value < loopStartMeasure) {
+        setLoopStartMeasure(value)
+      }
+    },
+    [loopStartMeasure, setLoopStartMeasure, setLoopEndMeasure]
+  )
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
 
       switch (e.code) {
         case 'Space':
@@ -200,6 +258,9 @@ export function PlaybackControls({ scorePlayer, disabled = false, isFreeTier = t
   }, [handlePlayPause, handleStop, handleRestart])
 
   const isAtLimit = isFreeTier && currentTime >= FREE_TIER_LIMIT
+
+  // Generate measure options array
+  const measureOptions = Array.from({ length: totalMeasures }, (_, i) => i + 1)
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-4 space-y-4">
@@ -237,6 +298,36 @@ export function PlaybackControls({ scorePlayer, disabled = false, isFreeTier = t
           disabled={!scorePlayer || disabled}
         >
           <Square className="w-5 h-5 text-gray-700" />
+        </button>
+
+        {/* Metronome toggle */}
+        <button
+          onClick={handleMetronomeToggle}
+          className={`p-2 rounded-full transition disabled:opacity-50 ${
+            metronomeEnabled
+              ? 'bg-indigo-100 text-indigo-700'
+              : 'hover:bg-gray-100 text-gray-700'
+          }`}
+          aria-label={metronomeEnabled ? 'Disable metronome' : 'Enable metronome'}
+          disabled={!scorePlayer || disabled}
+          title="Metronome"
+        >
+          <Timer className="w-5 h-5" />
+        </button>
+
+        {/* Loop toggle */}
+        <button
+          onClick={handleLoopToggle}
+          className={`p-2 rounded-full transition disabled:opacity-50 ${
+            loopEnabled
+              ? 'bg-indigo-100 text-indigo-700'
+              : 'hover:bg-gray-100 text-gray-700'
+          }`}
+          aria-label={loopEnabled ? 'Disable loop' : 'Enable loop'}
+          disabled={!scorePlayer || disabled}
+          title="Loop"
+        >
+          <Repeat className="w-5 h-5" />
         </button>
       </div>
 
@@ -281,6 +372,53 @@ export function PlaybackControls({ scorePlayer, disabled = false, isFreeTier = t
           Free tier: {FREE_TIER_LIMIT} second preview
         </div>
       )}
+
+      {/* Practice controls row */}
+      <div className="flex items-center justify-center flex-wrap gap-4">
+        {/* Count-in toggle */}
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={countInEnabled}
+            onChange={handleCountInToggle}
+            className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+            disabled={!scorePlayer || disabled}
+          />
+          <span className="text-sm text-gray-700">Count-in (1 bar)</span>
+        </label>
+
+        {/* Loop measure selectors */}
+        {loopEnabled && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">From:</span>
+            <select
+              value={loopStartMeasure}
+              onChange={handleLoopStartChange}
+              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
+              disabled={!scorePlayer || disabled}
+            >
+              {measureOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <span className="text-sm text-gray-600">To:</span>
+            <select
+              value={loopEndMeasure}
+              onChange={handleLoopEndChange}
+              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-gray-900"
+              disabled={!scorePlayer || disabled}
+            >
+              {measureOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
 
       {/* Secondary controls row */}
       <div className="flex items-center justify-between flex-wrap gap-4">
