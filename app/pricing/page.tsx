@@ -1,6 +1,28 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
 
 export default function PricingPage() {
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      setLoading(false)
+    }
+
+    checkAuth()
+  }, [supabase])
+
+  // Dynamic href based on auth state
+  const getStartedHref = user ? '/dashboard' : '/auth/signup'
+  const upgradeHref = user ? '/dashboard/checkout' : '/auth/signup'
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
@@ -10,15 +32,33 @@ export default function PricingPage() {
             FretMaestro
           </Link>
           <div className="flex gap-4">
-            <Link href="/login" className="text-gray-700 hover:text-indigo-600 font-medium">
-              Log in
-            </Link>
-            <Link
-              href="/signup"
-              className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition"
-            >
-              Sign up
-            </Link>
+            {loading ? (
+              <div className="h-10 w-24 bg-gray-100 animate-pulse rounded-lg" />
+            ) : user ? (
+              <>
+                <Link href="/dashboard" className="border border-gray-300 text-gray-700 hover:border-indigo-600 hover:text-indigo-600 px-4 py-2 rounded-lg font-medium transition">
+                  Dashboard
+                </Link>
+                <Link
+                  href="/dashboard/checkout"
+                  className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition"
+                >
+                  Upgrade
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/auth/login" className="border border-gray-300 text-gray-700 hover:border-indigo-600 hover:text-indigo-600 px-4 py-2 rounded-lg font-medium transition">
+                  Log in
+                </Link>
+                <Link
+                  href="/auth/signup"
+                  className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition"
+                >
+                  Sign up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -71,10 +111,10 @@ export default function PricingPage() {
             </ul>
 
             <Link
-              href="/signup"
+              href={getStartedHref}
               className="block text-center bg-gray-100 text-gray-900 hover:bg-gray-200 px-6 py-3 rounded-lg font-semibold transition"
             >
-              Get Started
+              {user ? 'Go to Dashboard' : 'Get Started'}
             </Link>
           </div>
 
@@ -122,14 +162,16 @@ export default function PricingPage() {
             </ul>
 
             <Link
-              href="/signup"
+              href={upgradeHref}
               className="block text-center bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-3 rounded-lg font-semibold transition"
             >
-              Start Free Trial
+              {user ? 'Upgrade Now' : 'Start Free Trial'}
             </Link>
-            <p className="text-center text-sm text-gray-600 mt-4">
-              No credit card required
-            </p>
+            {!user && (
+              <p className="text-center text-sm text-gray-600 mt-4">
+                No credit card required
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -137,7 +179,7 @@ export default function PricingPage() {
       {/* FAQ Section */}
       <section className="bg-white py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
+          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">Frequently Asked Questions</h2>
 
           <div className="space-y-8">
             <div>
@@ -184,10 +226,10 @@ export default function PricingPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold text-white mb-6">Ready to start learning?</h2>
           <Link
-            href="/signup"
+            href={user ? '/dashboard/checkout' : '/auth/signup'}
             className="inline-block bg-white text-indigo-600 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold transition"
           >
-            Get Started Free
+            {user ? 'Upgrade to Pro' : 'Get Started Free'}
           </Link>
         </div>
       </section>

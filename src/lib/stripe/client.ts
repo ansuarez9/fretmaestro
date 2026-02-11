@@ -5,5 +5,5 @@ import Stripe from 'stripe'
  * Used in API routes and server actions
  */
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-11-20',
+  apiVersion: '2026-01-28.clover',
 })
