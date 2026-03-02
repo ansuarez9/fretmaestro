@@ -20,6 +20,7 @@ interface ScoreRendererProps {
   highlightColor?: string
   loopStartMeasure?: number
   loopEndMeasure?: number
+  noteColors?: Map<number, string>
 }
 
 interface SystemLayout {
@@ -34,6 +35,7 @@ export function ScoreRenderer({
   highlightColor = '#EF4444', // red-500 - high contrast against black notes
   loopStartMeasure = -1,
   loopEndMeasure = -1,
+  noteColors,
 }: ScoreRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(800)
@@ -300,45 +302,63 @@ export function ScoreRenderer({
   // Handle note highlighting during playback
   useEffect(() => {
     // Reset all highlighted notes to default (black)
-    noteElements.forEach((element) => {
-      // Get ALL descendant elements
+    noteElements.forEach((element, noteIdx) => {
+      // Check if this note has a persistent color from practice mode
+      const persistentColor = noteColors?.get(noteIdx)
+      const resetColor = persistentColor || 'black'
+
       const allDescendants = element.querySelectorAll('*')
       allDescendants.forEach((child) => {
         const svgChild = child as SVGElement
         if (svgChild.dataset?.highlighted === 'true') {
-          // Reset to black
-          svgChild.setAttribute('fill', 'black')
-          svgChild.setAttribute('stroke', 'black')
-          svgChild.style.fill = 'black'
-          svgChild.style.stroke = 'black'
-          delete svgChild.dataset.highlighted
+          svgChild.setAttribute('fill', resetColor)
+          svgChild.setAttribute('stroke', resetColor)
+          svgChild.style.fill = resetColor
+          svgChild.style.stroke = resetColor
+          if (!persistentColor) {
+            delete svgChild.dataset.highlighted
+          }
         }
       })
+
+      // Apply persistent color even if not previously highlighted
+      if (persistentColor) {
+        allDescendants.forEach((child) => {
+          const svgChild = child as SVGElement
+          svgChild.setAttribute('fill', persistentColor)
+          svgChild.setAttribute('stroke', persistentColor)
+          svgChild.style.fill = persistentColor
+          svgChild.style.stroke = persistentColor
+          svgChild.dataset.highlighted = 'true'
+        })
+        const svgEl = element as SVGElement
+        svgEl.setAttribute('fill', persistentColor)
+        svgEl.setAttribute('stroke', persistentColor)
+        svgEl.style.fill = persistentColor
+        svgEl.style.stroke = persistentColor
+      }
     })
 
-    // Highlight current note
+    // Highlight current note (overrides persistent color for active note)
     if (highlightedNoteIndex !== null && highlightedNoteIndex >= 0) {
       const element = noteElements.get(highlightedNoteIndex)
       if (element) {
-        // Get ALL descendant elements and highlight them
         const allDescendants = element.querySelectorAll('*')
         allDescendants.forEach((child) => {
           const svgChild = child as SVGElement
-          // Set both attribute and style to ensure it works
           svgChild.setAttribute('fill', highlightColor)
           svgChild.setAttribute('stroke', highlightColor)
           svgChild.style.fill = highlightColor
           svgChild.style.stroke = highlightColor
           svgChild.dataset.highlighted = 'true'
         })
-        // Also set on the element itself
         ;(element as SVGElement).setAttribute('fill', highlightColor)
         ;(element as SVGElement).setAttribute('stroke', highlightColor)
         ;(element as SVGElement).style.fill = highlightColor
         ;(element as SVGElement).style.stroke = highlightColor
       }
     }
-  }, [highlightedNoteIndex, highlightColor, noteElements])
+  }, [highlightedNoteIndex, highlightColor, noteElements, noteColors])
 
   if (score.measures.length === 0) {
     return (

@@ -11,7 +11,7 @@ import { PlaybackControls } from '@/components/PlaybackControls'
 import { ScorePlayer } from '@/lib/audio/ScorePlayer'
 import { usePlaybackStore } from '@/lib/store/usePlaybackStore'
 import { useScoreStore, type Score } from '@/lib/store/useScoreStore'
-import { Pencil } from 'lucide-react'
+import { Pencil, Music } from 'lucide-react'
 
 export default function ScoreViewerPage() {
   const params = useParams()
@@ -341,6 +341,13 @@ export default function ScoreViewerPage() {
                 >
                   <Pencil className="w-5 h-5" />
                 </button>
+                <Link
+                  href={`/dashboard/scores/${scoreId}/practice`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 font-medium transition"
+                >
+                  <Music className="w-4 h-4" />
+                  Practice
+                </Link>
               </div>
               {currentScore.composer && (
                 <p className="text-gray-600 mt-1">by {currentScore.composer}</p>
